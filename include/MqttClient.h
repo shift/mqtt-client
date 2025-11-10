@@ -1,8 +1,19 @@
 #pragma once
 
 #include <functional>
-#include "esp_event.h"
+
+// Forward declarations for ESP-IDF types to avoid hard dependencies in header
+#ifdef ESP_IDF_VERSION_MAJOR
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(4, 0, 0)
 #include "mqtt_client.h"
+#else
+#include "esp_mqtt_client.h"
+#endif
+#else
+#include "esp_mqtt_client.h"
+#endif
+
+#include "esp_event.h"
 #include "UriUtils.h"
 
 typedef std::function<void(const char* topic, const char* payload, size_t length)> MessageCallback;
@@ -21,6 +32,12 @@ public:
   void setCredentials(const char* username, const char* password);
   void setKeepalive(uint16_t keepalive);
   void setProtocolFallback(bool enableFallback); // Enable v3.1.1 fallback if v5 fails
+  
+  // mTLS / Certificate configuration
+  void setCACert(const char* ca_cert);           // Set CA certificate for server verification
+  void setClientCert(const char* client_cert);   // Set client certificate for mTLS
+  void setClientKey(const char* client_key);     // Set client private key for mTLS
+  void setInsecure(bool insecure);               // Skip certificate verification (for testing only)
 
   bool connect(const char* clientId);
   void disconnect();
@@ -57,6 +74,12 @@ private:
   char* _clientId;
   uint16_t _keepalive;
   bool _connected;
+  
+  // TLS/mTLS certificate configuration
+  char* _caCert;           // CA certificate for server verification
+  char* _clientCert;       // Client certificate for mTLS
+  char* _clientKey;        // Client private key for mTLS
+  bool _skipCertVerify;    // Skip certificate verification (insecure mode)
 
   // Fallback configuration
   bool _enableFallback;

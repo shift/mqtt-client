@@ -139,6 +139,10 @@ MqttClient::MqttClient()
       _clientId(nullptr),
       _keepalive(30),
       _connected(false),
+      _caCert(nullptr),
+      _clientCert(nullptr),
+      _clientKey(nullptr),
+      _skipCertVerify(false),
       _enableFallback(false),
       _usingFallback(false) {
 }
@@ -161,6 +165,9 @@ MqttClient::~MqttClient() {
   free(_username);
   free(_password);
   free(_clientId);
+  free(_caCert);
+  free(_clientCert);
+  free(_clientKey);
 }
 
 void MqttClient::parseUriComponents(const char* uri) {
@@ -221,6 +228,39 @@ void MqttClient::setCredentials(const char* username, const char* password) {
 
 void MqttClient::setKeepalive(uint16_t keepalive) {
   _keepalive = keepalive;
+}
+
+void MqttClient::setCACert(const char* ca_cert) {
+  if (ca_cert) {
+    size_t len = strlen(ca_cert);
+    _caCert = static_cast<char*>(realloc(_caCert, len + 1));
+    strcpy(_caCert, ca_cert);
+    Serial.println("[MQTT][INFO] CA certificate configured");
+  }
+}
+
+void MqttClient::setClientCert(const char* client_cert) {
+  if (client_cert) {
+    size_t len = strlen(client_cert);
+    _clientCert = static_cast<char*>(realloc(_clientCert, len + 1));
+    strcpy(_clientCert, client_cert);
+    Serial.println("[MQTT][INFO] Client certificate configured for mTLS");
+  }
+}
+
+void MqttClient::setClientKey(const char* client_key) {
+  if (client_key) {
+    size_t len = strlen(client_key);
+    _clientKey = static_cast<char*>(realloc(_clientKey, len + 1));
+    strcpy(_clientKey, client_key);
+    Serial.println("[MQTT][INFO] Client private key configured for mTLS");
+  }
+}
+
+void MqttClient::setInsecure(bool insecure) {
+  _skipCertVerify = insecure;
+  Serial.print("[MQTT][WARNING] Certificate verification ");
+  Serial.println(insecure ? "DISABLED (insecure mode)" : "enabled");
 }
 
 void MqttClient::setProtocolFallback(bool enableFallback) {
@@ -284,6 +324,11 @@ bool MqttClient::connectWithProtocol(esp_mqtt_protocol_ver_t protocol) {
                       .hostname = _uri ? nullptr : _host,
                       .port = _uri ? 0 : _port,
                   },
+              .verification =
+                  {
+                      .certificate = _caCert,
+                      .skip_cert_common_name_check = _skipCertVerify,
+                  },
           },
       .credentials =
           {
@@ -292,6 +337,8 @@ bool MqttClient::connectWithProtocol(esp_mqtt_protocol_ver_t protocol) {
               .authentication =
                   {
                       .password = _password,
+                      .certificate = _clientCert,
+                      .key = _clientKey,
                   },
           },
       .session =
@@ -313,6 +360,12 @@ bool MqttClient::connectWithProtocol(esp_mqtt_protocol_ver_t protocol) {
   mqtt_cfg.password = _password;
   mqtt_cfg.keepalive = _keepalive;
   mqtt_cfg.protocol_ver = protocol;
+  
+  // TLS/mTLS configuration for IDF < 5.0
+  mqtt_cfg.cert_pem = _caCert;
+  mqtt_cfg.client_cert_pem = _clientCert;
+  mqtt_cfg.client_key_pem = _clientKey;
+  mqtt_cfg.skip_cert_common_name_check = _skipCertVerify;
 #endif
 #else
   esp_mqtt_client_config_t mqtt_cfg = {};
@@ -326,6 +379,12 @@ bool MqttClient::connectWithProtocol(esp_mqtt_protocol_ver_t protocol) {
   mqtt_cfg.username = _username;
   mqtt_cfg.password = _password;
   mqtt_cfg.keepalive = _keepalive;
+  
+  // TLS/mTLS configuration for older ESP-IDF
+  mqtt_cfg.cert_pem = _caCert;
+  mqtt_cfg.client_cert_pem = _clientCert;
+  mqtt_cfg.client_key_pem = _clientKey;
+  mqtt_cfg.skip_cert_common_name_check = _skipCertVerify;
   // For older ESP-IDF versions, protocol selection may not be available
 #endif
 

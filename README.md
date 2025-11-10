@@ -1,6 +1,6 @@
 # MQTT 5.0 Client Library
 
-A comprehensive MQTT 5.0 client library for ESP8266/ESP32 platforms built with PlatformIO. This library provides full support for MQTT 5.0 protocol features while maintaining backward compatibility with MQTT 3.1.1.
+A comprehensive MQTT 5.0 client library for ESP32 platforms built with PlatformIO. This library provides full support for MQTT 5.0 protocol features while maintaining backward compatibility with MQTT 3.1.1.
 
 ## Features
 
@@ -24,6 +24,7 @@ A comprehensive MQTT 5.0 client library for ESP8266/ESP32 platforms built with P
 - Comprehensive error handling and logging
 - Built-in WiFi integration for ESP platforms
 - SSL/TLS support for secure connections
+- mTLS (mutual TLS) support with client certificates
 - WebSocket transport support
 - Extensive unit test coverage
 
@@ -81,6 +82,77 @@ mqtt->setServer("broker.example.com", 443);
 mqtt->setWebSocket(true);
 mqtt->setPath("/mqtt");
 mqtt->connect("my-client-id");
+```
+
+### Secure Connection with TLS
+
+Connect to a broker using TLS encryption:
+
+```cpp
+MqttClient* mqtt = MqttClient::getInstance();
+
+// Connect using mqtts:// scheme
+mqtt->begin("mqtts://broker.example.com:8883");
+mqtt->setCredentials("username", "password");
+
+// Optional: Set CA certificate for server verification
+const char* ca_cert = R"EOF(
+-----BEGIN CERTIFICATE-----
+MIIDrzCCApegAwIBAgIQCDvgVpBCRrGhdWrJWZHHSjANBgkqhkiG9w0BAQUFADBh
+...
+-----END CERTIFICATE-----
+)EOF";
+
+mqtt->setCACert(ca_cert);
+mqtt->connect("my-client-id");
+```
+
+### mTLS (Mutual TLS) with Client Certificates
+
+For mutual TLS authentication where both the client and server verify each other:
+
+```cpp
+MqttClient* mqtt = MqttClient::getInstance();
+
+// CA certificate to verify the server
+const char* ca_cert = R"EOF(
+-----BEGIN CERTIFICATE-----
+MIIDrzCCApegAwIBAgIQCDvgVpBCRrGhdWrJWZHHSjANBgkqhkiG9w0BAQUFADBh
+...
+-----END CERTIFICATE-----
+)EOF";
+
+// Client certificate for authentication
+const char* client_cert = R"EOF(
+-----BEGIN CERTIFICATE-----
+MIIDWjCCAkKgAwIBAgIVANVGz4XV9VlBCPBcVCLgFqHFPqLCMA0GCSqGSIb3DQEB
+...
+-----END CERTIFICATE-----
+)EOF";
+
+// Client private key (keep this secret!)
+const char* client_key = R"EOF(
+-----BEGIN PRIVATE KEY-----
+MIIEvwIBADANBgkqhkiG9w0BAQEFAASCBKkwggSlAgEAAoIBAQC9yWlqBe5J8dYX
+...
+-----END PRIVATE KEY-----
+)EOF";
+
+mqtt->begin("mqtts://broker.example.com:8883");
+mqtt->setCredentials("username", "password");
+
+// Configure mTLS certificates
+mqtt->setCACert(ca_cert);           // Server verification
+mqtt->setClientCert(client_cert);   // Client authentication
+mqtt->setClientKey(client_key);     // Client private key
+
+mqtt->connect("my-client-id");
+```
+
+**Note:** For testing purposes only, you can skip certificate verification:
+
+```cpp
+mqtt->setInsecure(true);  // WARNING: Only use for testing!
 ```
 
 ### Advanced Usage (MQTT 5.0 Features)
@@ -189,6 +261,24 @@ Establish connection to the MQTT broker.
 #### `void disconnect(MqttReasonCode reasonCode, const std::vector<MqttProperty>& properties)`
 
 Disconnect with MQTT 5.0 reason code and properties.
+
+### Security & TLS/mTLS Configuration
+
+#### `void setCACert(const char* ca_cert)`
+
+Set CA certificate for server verification. The certificate should be in PEM format.
+
+#### `void setClientCert(const char* client_cert)`
+
+Set client certificate for mTLS authentication. The certificate should be in PEM format.
+
+#### `void setClientKey(const char* client_key)`
+
+Set client private key for mTLS authentication. The key should be in PEM format.
+
+#### `void setInsecure(bool insecure)`
+
+Skip certificate verification (for testing only). **WARNING:** Only use this for development/testing. Never use in production.
 
 ### Publishing
 
@@ -318,8 +408,8 @@ Comprehensive reason codes for detailed error reporting:
 
 ## Platform Support
 
-- **ESP32**: Full feature support with Arduino Framework
-- **ESP8266**: Full feature support with Arduino Framework
+- **ESP32**: Full feature support including mTLS with Arduino Framework and ESP-IDF
+- **ESP8266**: ⚠️ **Not currently supported** - This library uses ESP-IDF's MQTT client which is ESP32-only
 - **Native**: Unit testing and development support
 
 ## Build Configuration
@@ -341,10 +431,9 @@ pio test -e native
 
 # Test on ESP32
 pio test -e esp32
-
-# Test on ESP8266
-pio test -e esp8266
 ```
+
+**Note:** ESP8266 is not currently supported as this library uses ESP-IDF's MQTT client APIs.
 
 ## Examples
 
